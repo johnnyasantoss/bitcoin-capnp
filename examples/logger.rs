@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use bitcoin_ipc::BitcoinCoreIpc;
+use bitcoin_ipc::BitcoinIpc;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -10,7 +10,7 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
-        eprintln!("Usage: {} <bitcoin_core_unix_socket_path>", args[0]);
+        eprintln!("Usage: {} <bitcoin_unix_socket_path>", args[0]);
         std::process::exit(1);
     }
 
@@ -20,28 +20,33 @@ async fn main() {
 
     let cancel_clone = cancel.clone();
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.unwrap();
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to listen for Ctrl+C signal");
         info!("Ctrl+C received");
         cancel.cancel();
     });
 
     local_set
         .run_until(async move {
-            let ipc = BitcoinCoreIpc::new(path, cancel_clone.clone(), 1, 1)
+            let ipc = BitcoinIpc::new(path)
                 .await
-                .unwrap();
+                .expect("failed to connect to Bitcoin Core IPC socket");
 
-            let mut tip_rx = ipc.subscribe_tip_changes();
+            let monitor = ipc
+                .mining
+                .start_monitoring(1, 1)
+                .await
+                .expect("failed to start tip monitoring");
+            let mut tip_rx = monitor.subscribe_tip_changes();
+
             tokio::task::spawn_local(async move {
                 while let Ok(tip) = tip_rx.recv().await {
-                    info!(
-                        "Tip changed — height: {}, hash: {:?}",
-                        tip.height, tip.hash
-                    );
+                    info!("Tip changed — height: {}, hash: {:?}", tip.height, tip.hash);
                 }
             });
 
-            ipc.run().await;
+            cancel_clone.cancelled().await;
         })
         .await;
 }

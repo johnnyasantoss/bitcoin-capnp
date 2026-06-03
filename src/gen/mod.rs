@@ -1,5 +1,10 @@
+#[doc = include_str!("README.md")]
 pub mod common_capnp;
+#[doc = include_str!("README.md")]
 pub mod echo_capnp;
+#[doc = include_str!("README.md")]
 pub mod init_capnp;
+#[doc = include_str!("README.md")]
 pub mod mining_capnp;
+#[doc = include_str!("README.md")]
 pub mod proxy_capnp;

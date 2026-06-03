@@ -1,4 +1,4 @@
-# bitcoin-ipc
+# Bitcoin-IPC
 
 Rust client library for Bitcoin Core's Cap'n Proto IPC (libmultiprocess)
 interface.
@@ -18,3 +18,12 @@ Library crate — no binary target. Only entrypoint:
 ```
 cargo run --example logger /path/to/bitcoin/node.sock
 ```
+
+## Acknowledgments
+
+- Bitcoin Core developers for the libmultiprocess protocol
+- Cap'n Proto team for the Rust bindings
+- [@plebhash][plebhash] for the [initial implementation][sv2-bitcoin-core] that led to this crate.
+
+[plebhash]: https://github.com/plebhash
+[sv2-bitcoin-core]: https://github.com/plebhash/sv2-bitcoin-core

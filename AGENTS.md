@@ -11,13 +11,25 @@ Migration from `sv2-bitcoin-core` to `bitcoin-ipc` complete — see
 Requires `capnpc` (from cap'n proto install) to generate `src/gen/*.rs` from
 `capnp/*.capnp` at build time.
 
+## Verify
+
+- After public API or doc changes, run `cargo test` — not just `cargo check`.
+  Doc examples in `///` comments are doctests; `check` does not compile them.
+- Run `cargo fmt` before every commit. Unformatted code is a review blocker.
+
 ## Run
 
-Library crate — no binary. Only entrypoint:
+Library crate — no binary. Example entrypoints:
 
 ```
 cargo run --example logger /path/to/bitcoin/node.sock
+cargo run --example echo   /path/to/bitcoin/node.sock
 ```
+
+## Docs
+
+- Plans for new features, examples, and architecture changes live under
+  `docs/` as numbered files: `NNN-short-slug.md`.
 
 ## Quirks
 
@@ -26,14 +38,25 @@ cargo run --example logger /path/to/bitcoin/node.sock
 - `src/gen/` is gitignored except `src/gen/mod.rs` — never commit generated
   capnp code.
 - Requires nightly Rust.
-- No tests, no CI, no lint config.
 
 ## Code style
 
-Follow the same conventions as p2poolv2 (`../p2poolv2/AGENTS.md`):
-
+- Avoid deep nesting. Extract inner closures and nested logic into named
+  functions. A flat call stack reads faster than four levels of indentation.
 - `thiserror::Error` for all error types. No manual `Display`/`Error` impls.
-- `///` doc comments on public API types and methods. No inline `//` comments
-  unless logic is genuinely surprising.
+- `///` doc comments on ALL public API items — structs, enums, enum variants,
+  methods, functions, modules. No inline `//` comments unless logic is
+  genuinely surprising.
 - Prefer `file.rs:line` references over copying code into this file.
 - Merge small related modules rather than creating many tiny files.
+- No `.unwrap()`. Use `.expect("fluent message")` — even in examples. The
+  message should read as natural English, not a robotic label.
+- `pub(crate)` for internal plumbing (`client.rs`, `libmp.rs`). `pub` only for
+  consumer-facing API modules. Internal abstractions like `PublicClient`,
+  `ContextBuilder`, and `IntoCapnp` stay `pub(crate)` — they are not part of
+  the public API surface.
+- Use traits for abstractions, not macros. A `macro_rules!` that is purely a
+  mechanical list of type paths is acceptable — but logic must live in trait
+  default methods.
+- Per-request cancellation (`send_cancellable`) over client-level kill switches.
+  A `CancellationToken` passed to a single RPC stops only that call.
