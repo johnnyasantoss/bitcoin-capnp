@@ -1,7 +1,8 @@
-//! # Bitcoin Core IPC Client for Rust
+//! # bitcoin-ipc
 //!
-//! A library to interact with Bitcoin Core via IPC (inter-process communication).
-//! First consumer: Stratum V2 Template Distribution Protocol.
+//! A minimal, general-purpose Cap'n Proto IPC client for Bitcoin Core.
+//! Consumers subscribe to tip change events via `tokio::sync::broadcast`
+//! and fetch raw block/coinbase data.
 
 /// Error types returned by the Bitcoin Core IPC client.
 pub mod error;
@@ -16,46 +17,43 @@ use crate::gen::mining_capnp::block_template::Client as BlockTemplateIpcClient;
 use crate::gen::mining_capnp::mining::Client as MiningIpcClient;
 use crate::gen::proxy_capnp::thread::Client as ThreadIpcClient;
 use crate::gen::proxy_capnp::thread_map::Client as ThreadMapIpcClient;
-use crate::template_data::TemplateData;
-
-use bitcoin::{block::Block, consensus::deserialize, Transaction};
 
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
-use error::IpcBitcoinCoreError;
-use std::collections::HashMap;
+use error::BitcoinIpcError;
 use std::path::Path;
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
+use std::sync::{Arc, Mutex};
 use tokio::net::UnixStream;
-use tokio::sync::RwLock;
+use tokio::sync::broadcast;
 use tokio_util::compat::*;
 use tokio_util::sync::CancellationToken;
 
 use tracing::info;
 
-pub mod template_data;
+/// Emitted when the chain tip changes.
+#[derive(Clone, Debug)]
+pub struct TipChange {
+    pub height: u32,
+    pub hash: Vec<u8>,
+}
 
 #[derive(Clone)]
-pub struct Sv2BitcoinCore {
+pub struct BitcoinCoreIpc {
     coinbase_output_max_additional_size: u32,
     coinbase_output_max_additional_sigops: u16,
     mining_ipc_client: MiningIpcClient,
     thread_ipc_client: ThreadIpcClient,
-    template_ipc_client: BlockTemplateIpcClient,
-    pub template_data: Arc<RwLock<HashMap<u64, TemplateData>>>,
-    template_id_factory: Arc<AtomicU64>,
+    template_ipc_client: Arc<Mutex<BlockTemplateIpcClient>>,
     cancellation_token: CancellationToken,
+    tip_change_tx: broadcast::Sender<TipChange>,
 }
 
-impl Sv2BitcoinCore {
+impl BitcoinCoreIpc {
     pub async fn new(
         bitcoin_core_unix_socket_path: &Path,
         cancellation_token: CancellationToken,
         coinbase_output_max_additional_size: u32,
         coinbase_output_max_additional_sigops: u16,
-    ) -> Result<Self, IpcBitcoinCoreError> {
+    ) -> Result<Self, BitcoinIpcError> {
         info!(
             "Creating new IPC Bitcoin Core Connection over UNIX socket: {}",
             bitcoin_core_unix_socket_path.display()
@@ -126,15 +124,16 @@ impl Sv2BitcoinCore {
             .get()?
             .get_result()?;
 
+        let (tip_change_tx, _) = broadcast::channel(16);
+
         Ok(Self {
             coinbase_output_max_additional_size,
             coinbase_output_max_additional_sigops,
             mining_ipc_client,
             thread_ipc_client,
-            template_id_factory: Arc::new(AtomicU64::new(0)),
-            template_ipc_client: template_ipc_client,
-            template_data: Arc::new(RwLock::new(HashMap::new())),
+            template_ipc_client: Arc::new(Mutex::new(template_ipc_client)),
             cancellation_token,
+            tip_change_tx,
         })
     }
 
@@ -143,7 +142,7 @@ impl Sv2BitcoinCore {
         self.cancellation_token.cancelled().await;
     }
 
-    async fn refresh_template_ipc_client(&mut self) -> Result<(), IpcBitcoinCoreError> {
+    async fn refresh_template_ipc_client(&self) -> Result<(), BitcoinIpcError> {
         info!("Refreshing template IPC client");
 
         let mut template_ipc_client_request = self.mining_ipc_client.create_new_block_request();
@@ -151,35 +150,39 @@ impl Sv2BitcoinCore {
             template_ipc_client_request.get().get_options()?;
 
         let coinbase_weight = (self.coinbase_output_max_additional_size * 4) as u64;
-        let block_reserved_weight = coinbase_weight.max(2000); // 2000 is the minimum block reserved weight
+        let block_reserved_weight = coinbase_weight.max(2000);
         template_ipc_client_request_options.set_block_reserved_weight(block_reserved_weight);
         template_ipc_client_request_options.set_coinbase_output_max_additional_sigops(
             self.coinbase_output_max_additional_sigops as u64,
         );
         template_ipc_client_request_options.set_use_mempool(true);
 
-        let template_ipc_client = template_ipc_client_request
+        let new_client = template_ipc_client_request
             .send()
             .promise
             .await?
             .get()?
             .get_result()?;
 
-        self.template_ipc_client = template_ipc_client;
+        *self.template_ipc_client.lock().unwrap() = new_client;
         Ok(())
     }
 
-    pub async fn fetch_template_data(&self) -> Result<u64, IpcBitcoinCoreError> {
-        info!("Fetching template data over IPC");
-        let template_id = self.template_id_factory.fetch_add(1, Ordering::Relaxed);
+    /// Subscribe to chain tip change events.
+    pub fn subscribe_tip_changes(&self) -> broadcast::Receiver<TipChange> {
+        self.tip_change_tx.subscribe()
+    }
 
-        let mut template_block_request = self.template_ipc_client.get_block_request();
-        template_block_request
+    /// Fetch the current block template and coinbase from Bitcoin Core.
+    /// Returns (block_bytes, coinbase_bytes).
+    pub async fn fetch_block_template(&self) -> Result<(Vec<u8>, Vec<u8>), BitcoinIpcError> {
+        let client = self.template_ipc_client.lock().unwrap();
+        let mut block_req = client.get_block_request();
+        block_req
             .get()
             .get_context()?
             .set_thread(self.thread_ipc_client.clone());
-
-        let template_block_bytes = template_block_request
+        let block_bytes = block_req
             .send()
             .promise
             .await?
@@ -187,15 +190,12 @@ impl Sv2BitcoinCore {
             .get_result()?
             .to_vec();
 
-        // Deserialize the complete block template from Bitcoin Core's serialization format
-        let block: Block = deserialize(&template_block_bytes)?;
-
-        let mut coinbase_request = self.template_ipc_client.get_coinbase_tx_request();
-        coinbase_request
+        let mut coinbase_req = client.get_coinbase_tx_request();
+        coinbase_req
             .get()
             .get_context()?
             .set_thread(self.thread_ipc_client.clone());
-        let coinbase_bytes = coinbase_request
+        let coinbase_bytes = coinbase_req
             .send()
             .promise
             .await?
@@ -203,22 +203,11 @@ impl Sv2BitcoinCore {
             .get_result()?
             .to_vec();
 
-        let coinbase: Transaction = deserialize(&coinbase_bytes)?;
-
-        // Create the template data structure
-        let template_data = TemplateData::new(template_id, block, coinbase);
-
-        // Store the template data
-        self.template_data
-            .write()
-            .await
-            .insert(template_id, template_data.clone());
-
-        Ok(template_id)
+        Ok((block_bytes, coinbase_bytes))
     }
 
     fn monitor_tip_changes(&self) {
-        let mut self_clone = self.clone();
+        let self_clone = self.clone();
         tokio::task::spawn_local(async move {
             let mut get_tip_request = self_clone.mining_ipc_client.get_tip_request();
             match get_tip_request.get().get_context() {
@@ -328,46 +317,12 @@ impl Sv2BitcoinCore {
                                 if new_height > current_tip_height {
                                     info!("Tip changed! New height: {}", new_height);
                                     current_tip_height = new_height;
-                                    current_tip_hash = new_hash;
-
-                                    // no point in keeping the old templates around
-                                    self_clone.template_data.write().await.clear();
-
-                                    // refresh the template IPC client
-                                    match self_clone.refresh_template_ipc_client().await {
-                                        Ok(_) => (),
-                                        Err(e) => {
-                                            tracing::error!("Failed to refresh template IPC client: {:?}", e);
-                                            continue;
-                                        }
-                                    }
-
-                                    // fetch the new template data
-                                    let _ = match self_clone.fetch_template_data().await {
-                                        Ok(_) => (),
-                                        Err(e) => {
-                                            tracing::error!("Failed to fetch template data: {:?}", e);
-                                            continue;
-                                        }
+                                    let tip = TipChange {
+                                        height: new_height as u32,
+                                        hash: new_hash.clone(),
                                     };
-
-                                    // // todo broadcast future NewTemplate over channel
-                                    // let future_template = match self_clone.get_new_template_message(template_id, true).await {
-                                    //     Ok(future_template) => future_template,
-                                    //     Err(e) => {
-                                    //         tracing::error!("Failed to get new template message: {:?}", e);
-                                    //         continue;
-                                    //     }
-                                    // };
-
-                                    // // todo broadcast SetNewPrevHash over channel
-                                    // let set_new_prev_hash = match self_clone.get_set_new_prev_hash_message(template_id).await {
-                                    //     Ok(set_new_prev_hash) => set_new_prev_hash,
-                                    //     Err(e) => {
-                                    //         tracing::error!("Failed to get set new prev hash message: {:?}", e);
-                                    //         continue;
-                                    //     }
-                                    // };
+                                    current_tip_hash = new_hash;
+                                    let _ = self_clone.tip_change_tx.send(tip);
                                 }
                             }
                             Err(e) => {

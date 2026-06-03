@@ -1,29 +1,15 @@
 use bitcoin::consensus;
 
-#[derive(Debug)]
-pub enum IpcBitcoinCoreError {
-    CapnpError(capnp::Error),
-    IoError(std::io::Error),
-    InvalidTemplateHeader(consensus::encode::Error),
-    InvalidTemplateHeaderLength,
+#[derive(Debug, thiserror::Error)]
+pub enum BitcoinIpcError {
+    #[error("Cap'n Proto error: {0}")]
+    CapnpError(#[from] capnp::Error),
+    #[error("I/O error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Invalid block header: {0}")]
+    InvalidHeader(#[from] consensus::encode::Error),
+    #[error("Invalid block header length")]
+    InvalidHeaderLength,
+    #[error("Invalid block structure")]
     InvalidBlockStructure,
-    TemplateNotFound,
-}
-
-impl From<capnp::Error> for IpcBitcoinCoreError {
-    fn from(error: capnp::Error) -> Self {
-        IpcBitcoinCoreError::CapnpError(error)
-    }
-}
-
-impl From<std::io::Error> for IpcBitcoinCoreError {
-    fn from(error: std::io::Error) -> Self {
-        IpcBitcoinCoreError::IoError(error)
-    }
-}
-
-impl From<consensus::encode::Error> for IpcBitcoinCoreError {
-    fn from(error: consensus::encode::Error) -> Self {
-        IpcBitcoinCoreError::InvalidTemplateHeader(error)
-    }
 }

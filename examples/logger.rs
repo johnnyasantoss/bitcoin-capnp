@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use sv2_bitcoin_core::Sv2BitcoinCore;
+use bitcoin_ipc::BitcoinCoreIpc;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -16,29 +16,32 @@ async fn main() {
 
     let path = Path::new(&args[1]);
     let cancel = CancellationToken::new();
+    let local_set = tokio::task::LocalSet::new();
 
-    let core = Sv2BitcoinCore::new(path, cancel.clone(), 1, 1)
-        .await
-        .expect("Failed to connect to Bitcoin Core IPC");
+    let cancel_clone = cancel.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        info!("Ctrl+C received");
+        cancel.cancel();
+    });
 
-    info!("Connected to Bitcoin Core IPC");
+    local_set
+        .run_until(async move {
+            let ipc = BitcoinCoreIpc::new(path, cancel_clone.clone(), 1, 1)
+                .await
+                .unwrap();
 
-    let template_id = core
-        .fetch_template_data()
-        .await
-        .expect("Failed to fetch block template");
+            let mut tip_rx = ipc.subscribe_tip_changes();
+            tokio::task::spawn_local(async move {
+                while let Ok(tip) = tip_rx.recv().await {
+                    info!(
+                        "Tip changed — height: {}, hash: {:?}",
+                        tip.height, tip.hash
+                    );
+                }
+            });
 
-    let templates = core.template_data.read().await;
-    if let Some(template) = templates.get(&template_id) {
-        info!("Template ID: {}", template.template_id);
-        info!(
-            "Block version: {}",
-            template.block.header.version.to_consensus()
-        );
-        info!("Transaction count: {}", template.block.txdata.len());
-        info!("nBits: {:#x}", template.get_nbits());
-        info!("nTime: {}", template.get_ntime());
-        info!("Coinbase tx version: {}", template.get_coinbase_tx_version());
-        info!("Merkle path length: {}", template.get_merkle_path().len());
-    }
+            ipc.run().await;
+        })
+        .await;
 }

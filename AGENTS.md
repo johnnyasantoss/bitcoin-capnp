@@ -3,8 +3,8 @@
 Rust Cap'n Proto IPC client for Bitcoin Core / Knots. Consumers: p2poolv2,
 Stratum V2, any software that needs to talk to a Bitcoin node.
 
-Migration from `sv2-bitcoin-core` in progress — see `docs/001-dep-cleanup.md`
-and `docs/002-repurpose.md` before touching code.
+Migration from `sv2-bitcoin-core` to `bitcoin-ipc` complete — see
+`docs/001-dep-cleanup.md` and `docs/002-repurpose.md` for history.
 
 ## Build
 
