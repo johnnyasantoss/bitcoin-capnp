@@ -1,13 +1,15 @@
-//! # Sv2 Bitcoin Core Library
+//! # Bitcoin Core IPC Client for Rust
 //!
-//! A library to interact with Bitcoin Core via IPC and get Stratum V2 Template Distribution Protocol.
+//! A library to interact with Bitcoin Core via IPC (inter-process communication).
+//! First consumer: Stratum V2 Template Distribution Protocol.
 
+/// Error types returned by the Bitcoin Core IPC client.
 pub mod error;
 
-/// Generated Cap'n Proto modules
 mod gen;
 
-/// Generated Cap'n Proto modules
+/// # Auto-generated Cap'n Proto modules
+/// Rust code generated directly from `*.capnp`
 pub use gen::*;
 
 use crate::gen::mining_capnp::block_template::Client as BlockTemplateIpcClient;
@@ -16,11 +18,10 @@ use crate::gen::proxy_capnp::thread::Client as ThreadIpcClient;
 use crate::gen::proxy_capnp::thread_map::Client as ThreadMapIpcClient;
 use crate::template_data::TemplateData;
 
-use roles_logic_sv2::bitcoin::{block::Block, consensus::deserialize, Transaction};
-use template_distribution_sv2::{NewTemplate, SetNewPrevHash};
+use bitcoin::{block::Block, consensus::deserialize, Transaction};
 
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
-use error::Sv2BitcoinCoreError;
+use error::IpcBitcoinCoreError;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{
@@ -34,7 +35,7 @@ use tokio_util::sync::CancellationToken;
 
 use tracing::info;
 
-mod template_data;
+pub mod template_data;
 
 #[derive(Clone)]
 pub struct Sv2BitcoinCore {
@@ -43,7 +44,7 @@ pub struct Sv2BitcoinCore {
     mining_ipc_client: MiningIpcClient,
     thread_ipc_client: ThreadIpcClient,
     template_ipc_client: BlockTemplateIpcClient,
-    template_data: Arc<RwLock<HashMap<u64, TemplateData>>>,
+    pub template_data: Arc<RwLock<HashMap<u64, TemplateData>>>,
     template_id_factory: Arc<AtomicU64>,
     cancellation_token: CancellationToken,
 }
@@ -54,9 +55,9 @@ impl Sv2BitcoinCore {
         cancellation_token: CancellationToken,
         coinbase_output_max_additional_size: u32,
         coinbase_output_max_additional_sigops: u16,
-    ) -> Result<Self, Sv2BitcoinCoreError> {
+    ) -> Result<Self, IpcBitcoinCoreError> {
         info!(
-            "Creating new Sv2 Bitcoin Core Connection via IPC over UNIX socket: {}",
+            "Creating new IPC Bitcoin Core Connection over UNIX socket: {}",
             bitcoin_core_unix_socket_path.display()
         );
         info!(
@@ -142,7 +143,7 @@ impl Sv2BitcoinCore {
         self.cancellation_token.cancelled().await;
     }
 
-    async fn refresh_template_ipc_client(&mut self) -> Result<(), Sv2BitcoinCoreError> {
+    async fn refresh_template_ipc_client(&mut self) -> Result<(), IpcBitcoinCoreError> {
         info!("Refreshing template IPC client");
 
         let mut template_ipc_client_request = self.mining_ipc_client.create_new_block_request();
@@ -168,7 +169,7 @@ impl Sv2BitcoinCore {
         Ok(())
     }
 
-    async fn fetch_template_data(&self) -> Result<u64, Sv2BitcoinCoreError> {
+    pub async fn fetch_template_data(&self) -> Result<u64, IpcBitcoinCoreError> {
         info!("Fetching template data over IPC");
         let template_id = self.template_id_factory.fetch_add(1, Ordering::Relaxed);
 
@@ -214,41 +215,6 @@ impl Sv2BitcoinCore {
             .insert(template_id, template_data.clone());
 
         Ok(template_id)
-    }
-
-    async fn get_new_template_message(
-        &self,
-        template_id: u64,
-        future_template: bool,
-    ) -> Result<NewTemplate, Sv2BitcoinCoreError> {
-        let template_data = self
-            .template_data
-            .read()
-            .await
-            .get(&template_id)
-            .ok_or(Sv2BitcoinCoreError::TemplateNotFound)?;
-
-        // let new_template = NewTemplate {
-        //     template_id,
-        //     future_template,
-        //     version: template_data.get_version(),
-        //     coinbase_tx_version: template_data.get_coinbase_tx_version(),
-        //     coinbase_prefix:
-        // };
-        todo!()
-    }
-
-    async fn get_set_new_prev_hash_message(
-        &self,
-        template_id: u64,
-    ) -> Result<SetNewPrevHash, Sv2BitcoinCoreError> {
-        let template_data = self
-            .template_data
-            .read()
-            .await
-            .get(&template_id)
-            .ok_or(Sv2BitcoinCoreError::TemplateNotFound)?;
-        todo!()
     }
 
     fn monitor_tip_changes(&self) {
@@ -377,8 +343,8 @@ impl Sv2BitcoinCore {
                                     }
 
                                     // fetch the new template data
-                                    let template_id = match self_clone.fetch_template_data().await {
-                                        Ok(template_id) => template_id,
+                                    let _ = match self_clone.fetch_template_data().await {
+                                        Ok(_) => (),
                                         Err(e) => {
                                             tracing::error!("Failed to fetch template data: {:?}", e);
                                             continue;

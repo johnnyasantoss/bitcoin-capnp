@@ -1,24 +1,23 @@
 [package]
 name = "sv2-bitcoin-core"
-description = "A library to get Stratum V2 Template Distribution Protocol from Bitcoin Core IPC"
+description = "A Rust client library for Bitcoin Core's IPC (inter-process communication) interface"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["The Stratum V2 Developers"]
 homepage = "https://stratumprotocol.org"
-keywords = ["stratum", "mining", "bitcoin", "bitcoin-core"]
+keywords = ["bitcoin", "bitcoin-core", "mining", "stratum"]
 
 [dependencies]
-async-channel = "1.5.1"
 capnp = "0.21.4"
 capnp-rpc = "0.21.0"
-tokio = { version = "1.44.1", features = ["full"] }
-tokio-util = { version = "0.7.10", features = ["codec", "compat"] }
+bitcoin = "0.32.7"
+tokio = { version = "1.44.1", features = ["net", "sync", "rt", "rt-multi-thread", "macros", "signal"] }
+tokio-util = { version = "0.7.10", features = ["compat"] }
 tracing = "0.1.41"
+
+[dev-dependencies]
 tracing-subscriber = "0.3.19"
-template_distribution_sv2 = "3.1.0"
-binary_sv2 = "3.0.0"
-roles_logic_sv2 = "3.0.0"
 
 [build-dependencies]
 capnpc = "0.21.2"

@@ -1,4 +1,4 @@
-use roles_logic_sv2::bitcoin::{
+use bitcoin::{
     block::Block,
     hashes::{sha256d, Hash, HashEngine},
     Transaction,
@@ -6,9 +6,9 @@ use roles_logic_sv2::bitcoin::{
 
 #[derive(Clone)]
 pub struct TemplateData {
-    template_id: u64,
-    block: Block,
-    coinbase: Transaction,
+    pub template_id: u64,
+    pub block: Block,
+    pub coinbase: Transaction,
 }
 
 impl TemplateData {
