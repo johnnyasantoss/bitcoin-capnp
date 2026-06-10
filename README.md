@@ -6,6 +6,11 @@ interface.
 Works with Bitcoin Core, Knots, and compatible implementations. For consumers
 (p2poolv2, Stratum V2, any software that needs to talk to a Bitcoin node).
 
+> [!CAUTION]
+> This code is **NOT** the one behind the one on crates.io [bitcoin-ipc][crates-btc-ipc].
+
+[crates-btc-ipc]: https://crates.io/crates/bitcoin-ipc
+
 ## Build
 
 Requires `capnpc` (from [Cap'n Proto](https://capnproto.org/install.html)) to
@@ -24,6 +29,9 @@ cargo run --example logger /path/to/bitcoin/node.sock
 - Bitcoin Core developers for the libmultiprocess protocol
 - Cap'n Proto team for the Rust bindings
 - [@plebhash][plebhash] for the [initial implementation][sv2-bitcoin-core] that led to this crate.
+- [@rustaceanrob][rustaceanrob] for the [code][rustaceanrob-code] that led to pleb's implementation.
 
+[rustaceanrob]: https://github.com/rustaceanrob
+[rustaceanrob-code]: https://github.com/rustaceanrob/bitcoin-ipc
 [plebhash]: https://github.com/plebhash
 [sv2-bitcoin-core]: https://github.com/plebhash/sv2-bitcoin-core

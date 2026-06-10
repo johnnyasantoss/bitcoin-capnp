@@ -21,4 +21,10 @@ pub enum BitcoinIpcError {
     /// The operation was cancelled by the caller.
     #[error("Operation cancelled")]
     Cancelled,
+    /// The internal actor thread has disconnected.
+    #[error("Actor thread disconnected")]
+    ActorDisconnected,
+    /// The requested monitor ID does not exist in the actor.
+    #[error("Monitor not found: {0}")]
+    MonitorNotFound(u64),
 }

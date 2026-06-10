@@ -16,7 +16,6 @@ async fn main() {
 
     let path = Path::new(&args[1]);
     let cancel = CancellationToken::new();
-    let local_set = tokio::task::LocalSet::new();
 
     let cancel_clone = cancel.clone();
     tokio::spawn(async move {
@@ -27,26 +26,20 @@ async fn main() {
         cancel.cancel();
     });
 
-    local_set
-        .run_until(async move {
-            let ipc = BitcoinIpc::new(path)
-                .await
-                .expect("failed to connect to Bitcoin Core IPC socket");
+    let ipc = BitcoinIpc::new(path);
 
-            let monitor = ipc
-                .mining
-                .start_monitoring(1, 1)
-                .await
-                .expect("failed to start tip monitoring");
-            let mut tip_rx = monitor.subscribe_tip_changes();
+    let monitor = ipc
+        .mining
+        .start_monitoring(1, 1)
+        .await
+        .expect("failed to start tip monitoring");
+    let mut tip_rx = monitor.subscribe_tip_changes();
 
-            tokio::task::spawn_local(async move {
-                while let Ok(tip) = tip_rx.recv().await {
-                    info!("Tip changed — height: {}, hash: {:?}", tip.height, tip.hash);
-                }
-            });
+    tokio::spawn(async move {
+        while let Ok(tip) = tip_rx.recv().await {
+            info!("Tip changed — height: {}, hash: {:?}", tip.height, tip.hash);
+        }
+    });
 
-            cancel_clone.cancelled().await;
-        })
-        .await;
+    cancel_clone.cancelled().await;
 }

@@ -6,7 +6,6 @@ use std::time::Duration;
 use bitcoin_ipc::BitcoinIpc;
 use tokio::signal::ctrl_c;
 use tokio::spawn;
-use tokio::task::LocalSet;
 use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -26,7 +25,6 @@ async fn main() {
 
     let path = Path::new(&args[1]);
     let cancel = CancellationToken::new();
-    let local_set = LocalSet::new();
 
     let cancel_clone = cancel.clone();
     spawn(async move {
@@ -35,13 +33,11 @@ async fn main() {
         cancel.cancel();
     });
 
-    local_set.run_until(echo_ping(path, cancel_clone)).await;
+    echo_ping(path, cancel_clone).await;
 }
 
 async fn echo_ping(path: &Path, cancel: CancellationToken) {
-    let ipc = BitcoinIpc::new(path)
-        .await
-        .expect("failed to connect to Bitcoin Core IPC socket");
+    let ipc = BitcoinIpc::new(path);
 
     let mut sent = 0u64;
     let mut lost = 0u64;

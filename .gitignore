@@ -1,4 +1,4 @@
-/target
+target/
 
 src/gen/*
 !src/gen/mod.rs

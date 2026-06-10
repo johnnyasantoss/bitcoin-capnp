@@ -14,10 +14,11 @@
 //! ```no_run
 //! use bitcoin_ipc::BitcoinIpc;
 //!
-//! async {
-//!     let ipc = BitcoinIpc::new("/path/to/bitcoin.sock".as_ref()).await.unwrap();
-//!     let _monitor = ipc.mining.start_monitoring(1, 1).await.unwrap();
-//! };
+//! # #[tokio::main]
+//! # async fn main() {
+//! let ipc = BitcoinIpc::new("/path/to/bitcoin.sock".as_ref());
+//! let _monitor = ipc.mining.start_monitoring(1, 1).await.unwrap();
+//! # }
 //! ```
 
 /// Error types returned by the Bitcoin Core IPC client.
@@ -33,13 +34,14 @@ pub mod gen;
 /// `crate::proxy_capnp::`, `crate::mining_capnp::`, etc.
 pub use gen::*;
 
+mod actor;
 mod client;
 pub mod echo;
 mod libmp;
 pub mod mining;
 pub mod proxy;
 
-use error::BitcoinIpcError;
+pub use error::BitcoinIpcError;
 pub use mining::{
     BlockCreateOptions, BlockRef, BlockValidationState, BlockWaitOptions, MonitorClient, TipChange,
 };
@@ -51,20 +53,21 @@ use tracing::info;
 ///
 /// Connects to a Bitcoin Core node via UNIX socket. After construction,
 /// call [`MiningClient::start_monitoring`] to begin tip change monitoring
-/// and obtain a [`Monitor`](mining::Monitor) handle.
+/// and obtain a [`MonitorClient`] handle.
 ///
-/// Requires a `tokio::task::LocalSet` runtime (Cap'n Proto futures are `!Send`).
-/// See `examples/logger.rs`.
+/// `Send` and `Clone` — safe to move between async tasks. No `LocalSet`
+/// required.
 ///
 /// # Example
 ///
 /// ```no_run
 /// use bitcoin_ipc::BitcoinIpc;
 ///
-/// async {
-///     let ipc = BitcoinIpc::new("/path/to/bitcoin.sock".as_ref()).await.unwrap();
-///     let monitor = ipc.mining.start_monitoring(1, 1).await.unwrap();
-/// };
+/// # #[tokio::main]
+/// # async fn main() {
+/// let ipc = BitcoinIpc::new("/path/to/bitcoin.sock".as_ref());
+/// let monitor = ipc.mining.start_monitoring(1, 1).await.unwrap();
+/// # }
 /// ```
 #[derive(Clone)]
 pub struct BitcoinIpc {
@@ -75,22 +78,20 @@ pub struct BitcoinIpc {
 impl BitcoinIpc {
     /// Create a new IPC connection to a Bitcoin Core node.
     ///
-    /// Bootstraps the Cap'n Proto connection and creates all IPC clients.
-    /// Call [`MiningClient::start_monitoring`] on [`Self::mining`] to begin
-    /// tip change monitoring and block template management.
-    pub async fn new(node_socket_path: &Path) -> Result<Self, BitcoinIpcError> {
+    /// Spawns an internal actor thread that owns all Cap'n Proto state.
+    /// The connection is established asynchronously inside the thread;
+    /// method calls block until the actor is ready.
+    pub fn new(node_socket_path: &Path) -> Self {
         info!(
             "Creating new Bitcoin IPC connection over UNIX socket: {}",
             node_socket_path.display()
         );
 
-        let init_client = libmp::connect(node_socket_path).await?;
-        let thread_client = libmp::make_thread(&init_client).await?;
+        let cmd_tx = actor::spawn(node_socket_path);
 
-        let mining = mining::MiningClient::new(&init_client, &thread_client).await?;
+        let mining = mining::MiningClient::new(cmd_tx.clone());
+        let echo = echo::EchoClient::new(cmd_tx);
 
-        let echo = echo::EchoClient::new(&init_client, &thread_client).await?;
-
-        Ok(Self { mining, echo })
+        Self { mining, echo }
     }
 }
