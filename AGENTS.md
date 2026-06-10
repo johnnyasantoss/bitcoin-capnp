@@ -24,6 +24,7 @@ Library crate — no binary. Example entrypoints:
 ```
 cargo run --example logger /path/to/bitcoin/node.sock
 cargo run --example echo   /path/to/bitcoin/node.sock
+cargo run --manifest-path examples/tui/Cargo.toml /path/to/bitcoin/node.sock
 ```
 
 ## Docs
@@ -33,8 +34,12 @@ cargo run --example echo   /path/to/bitcoin/node.sock
 
 ## Quirks
 
-- Uses `tokio::task::spawn_local` — consumers must wrap runtime in
-  `tokio::task::LocalSet` (see `examples/logger.rs:21`).
+- All Cap'n Proto state lives in a dedicated actor thread (`src/actor.rs`).
+  Public clients (`BitcoinIpc`, `MiningClient`, `MonitorClient`, `EchoClient`)
+  are `Send + Clone` handles that communicate via channels.
+- `BitcoinIpc::new()` is **synchronous** — it spawns the actor thread and
+  returns immediately. Connection happens asynchronously inside the thread;
+  the first method call naturally blocks until ready.
 - `src/gen/` is gitignored except `src/gen/mod.rs` — never commit generated
   capnp code.
 - Requires nightly Rust.
@@ -51,10 +56,8 @@ cargo run --example echo   /path/to/bitcoin/node.sock
 - Merge small related modules rather than creating many tiny files.
 - No `.unwrap()`. Use `.expect("fluent message")` — even in examples. The
   message should read as natural English, not a robotic label.
-- `pub(crate)` for internal plumbing (`client.rs`, `libmp.rs`). `pub` only for
-  consumer-facing API modules. Internal abstractions like `PublicClient`,
-  `ContextBuilder`, and `IntoCapnp` stay `pub(crate)` — they are not part of
-  the public API surface.
+- `pub(crate)` for internal plumbing (`actor.rs`, `client.rs`, `libmp.rs`).
+  `pub` only for consumer-facing API modules. `IntoCapnp` stays `pub(crate)`.
 - Use traits for abstractions, not macros. A `macro_rules!` that is purely a
   mechanical list of type paths is acceptable — but logic must live in trait
   default methods.
