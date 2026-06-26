@@ -1,4 +1,4 @@
-# Copyright (c) 2021 The Bitcoin Core developers
+# Copyright (c) 2021-present The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,6 +8,8 @@ using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("ipc::capnp::messages");
 
 using Proxy = import "proxy.capnp";
+$Proxy.include("interfaces/echo.h");
+$Proxy.includeTypes("ipc/capnp/echo-types.h");
 
 interface Echo $Proxy.wrap("interfaces::Echo") {
     destroy @0 (context :Proxy.Context) -> ();

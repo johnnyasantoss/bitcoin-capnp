@@ -18,7 +18,7 @@ build-example EXAMPLE="logger":
 
 # Build the logger example
 run-example EXAMPLE="logger" *ARGS="":
-    cargo run --example {{ EXAMPLE }} -- {{ ARGS }}
+    cargo run --example {{ EXAMPLE }} -- {{ SOCKET }} {{ ARGS }}
 
 run-echo:
     cargo run --example echo -- {{ SOCKET }}

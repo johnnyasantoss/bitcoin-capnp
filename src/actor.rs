@@ -250,6 +250,10 @@ impl Actor {
             Command::MiningCreateNewBlock { options, reply } => {
                 let template = {
                     let mut req = self.mining_ipc_client.create_new_block_request();
+                    req.get()
+                        .get_context()?
+                        .set_thread(self.thread_ipc_client.clone());
+
                     options.apply(&mut req.get().get_options()?);
                     let response = req.send().promise.await?;
                     response.get()?.get_result()?
@@ -274,6 +278,9 @@ impl Actor {
                 };
 
                 let mut req = self.mining_ipc_client.create_new_block_request();
+                req.get()
+                    .get_context()?
+                    .set_thread(self.thread_ipc_client.clone());
                 options.apply(&mut req.get().get_options()?);
                 let response = req.send().promise.await?;
                 let template_ipc_client = response.get()?.get_result()?;
@@ -360,12 +367,13 @@ impl Actor {
                         req.get()
                             .get_context()?
                             .set_thread(self.thread_ipc_client.clone());
-                        let coinbase = req
-                            .send()
-                            .promise
-                            .await
-                            .and_then(|r| Ok(r.get()?.get_result()?.to_vec()))?;
-                        let _ = reply.send(Ok((block, coinbase)));
+                        // let coinbase = req
+                        //     .send()
+                        //     .promise
+                        //     .await
+                        //     .and_then(|r| Ok(r.get()?.get_result()?.coi()))?;
+                        //let _ = reply.send(Ok((block, coinbase)));
+                        todo!()
                     }
                     None => {
                         let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
@@ -451,12 +459,13 @@ impl Actor {
                         req.get()
                             .get_context()?
                             .set_thread(self.thread_ipc_client.clone());
-                        let data = req
-                            .send()
-                            .promise
-                            .await
-                            .and_then(|r| Ok(r.get()?.get_result()?.to_vec()))?;
-                        let _ = reply.send(Ok(data));
+                        // let data = req
+                        //     .send()
+                        //     .promise
+                        //     .await
+                        //     .and_then(|r| Ok(r.get()?.get_result()?.to_vec()))?;
+                        todo!()
+                        //let _ = reply.send(Ok(data));
                     }
                     None => {
                         let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
@@ -466,16 +475,17 @@ impl Actor {
             Command::MonitorGetCoinbaseCommitment { monitor_id, reply } => {
                 match self.monitors.get(&monitor_id) {
                     Some(state) => {
-                        let mut req = state.template_ipc_client.get_coinbase_commitment_request();
+                        let mut req = state.template_ipc_client.get_coinbase_merkle_path_request();
                         req.get()
                             .get_context()?
                             .set_thread(self.thread_ipc_client.clone());
-                        let data = req
-                            .send()
-                            .promise
-                            .await
-                            .and_then(|r| Ok(r.get()?.get_result()?.to_vec()))?;
-                        let _ = reply.send(Ok(data));
+                        // let data = req
+                        //     .send()
+                        //     .promise
+                        //     .await
+                        //     .and_then(|r| Ok(r.get()?.get_result()?.()))?;
+                        todo!()
+                        //let _ = reply.send(Ok(data));
                     }
                     None => {
                         let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
@@ -485,14 +495,15 @@ impl Actor {
             Command::MonitorGetWitnessCommitmentIndex { monitor_id, reply } => {
                 match self.monitors.get(&monitor_id) {
                     Some(state) => {
-                        let mut req = state
-                            .template_ipc_client
-                            .get_witness_commitment_index_request();
-                        req.get()
-                            .get_context()?
-                            .set_thread(self.thread_ipc_client.clone());
-                        let response = req.send().promise.await?;
-                        let _ = reply.send(Ok(response.get()?.get_result()));
+                        todo!()
+                        // let mut req = state
+                        //     .template_ipc_client
+                        //     .get_witness_commitment_index_request();
+                        // req.get()
+                        //     .get_context()?
+                        //     .set_thread(self.thread_ipc_client.clone());
+                        // let response = req.send().promise.await?;
+                        // let _ = reply.send(Ok(response.get()?.get_result()));
                     }
                     None => {
                         let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
