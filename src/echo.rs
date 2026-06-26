@@ -7,7 +7,7 @@
 use tokio_util::sync::CancellationToken;
 
 use crate::actor::{ActorTx, Command};
-use crate::error::BitcoinIpcError;
+use crate::error::BitcoinCapnpError;
 use tokio::sync::oneshot;
 
 /// High-level client for Bitcoin Core's Echo interface.
@@ -17,7 +17,7 @@ use tokio::sync::oneshot;
 ///
 /// `Send` and `Clone`.
 ///
-/// Created by `BitcoinIpc::new()` during bootstrap. Do not construct directly.
+/// Created by `BitcoinCapnp::new()` during bootstrap. Do not construct directly.
 #[derive(Clone)]
 pub struct EchoClient {
     cmd_tx: ActorTx,
@@ -35,7 +35,7 @@ impl EchoClient {
         &self,
         message: &str,
         cancel: CancellationToken,
-    ) -> Result<String, BitcoinIpcError> {
+    ) -> Result<String, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::EchoEcho {
@@ -43,16 +43,16 @@ impl EchoClient {
                 cancel,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Explicitly destroy the echo interface on the server side.
-    pub async fn destroy(&self) -> Result<(), BitcoinIpcError> {
+    pub async fn destroy(&self) -> Result<(), BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::EchoDestroy { reply: tx })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 }

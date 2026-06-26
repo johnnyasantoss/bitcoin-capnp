@@ -1,8 +1,9 @@
-# bitcoin-ipc development commands
+# bitcoin-capnp development commands
 # Requires: capnpc (cap'n proto), nightly Rust toolchain
+set dotenv-load
 
-export RUST_LOG := "debug"
-export RUST_BACKTRACE := "full"
+export RUST_LOG := env("RUST_LOG", "debug")
+export RUST_BACKTRACE := env("RUST_BACKTRACE", "full")
 export SOCKET := env("SOCKET", "../bitcoin/testnet4/node.sock")
 
 _default:
@@ -20,12 +21,7 @@ build-example EXAMPLE="logger":
 run-example EXAMPLE="logger" *ARGS="":
     cargo run --example {{ EXAMPLE }} -- {{ SOCKET }} {{ ARGS }}
 
-run-echo:
-    cargo run --example echo -- {{ SOCKET }}
-
-run-logger:
-    cargo run --example logger -- {{ SOCKET }}
-
+# Runs the interactive TUI
 run-tui:
     cargo run --manifest-path examples/tui/Cargo.toml -- {{ SOCKET }}
 

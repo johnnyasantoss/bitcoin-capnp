@@ -2,7 +2,7 @@ use std::io;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use bitcoin_ipc::{BitcoinIpc, BlockCreateOptions, BlockWaitOptions, MonitorClient, TipChange};
+use bitcoin_capnp::{BitcoinCapnp, BlockCreateOptions, BlockWaitOptions, MonitorClient, TipChange};
 use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{
@@ -142,7 +142,7 @@ async fn run_app(path: &Path, cancel: CancellationToken) {
         .draw(|f| {
             let area = f.area();
             let text = Line::from(Span::styled(
-                format!(" bitcoin-ipc TUI  ({}x{}) ", area.width, area.height),
+                format!(" bitcoin-capnp TUI  ({}x{}) ", area.width, area.height),
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
@@ -151,7 +151,7 @@ async fn run_app(path: &Path, cancel: CancellationToken) {
         })
         .expect("test draw failed");
 
-    let ipc = BitcoinIpc::new(path);
+    let ipc = BitcoinCapnp::new(path);
     let mut state = AppState::new(path.to_str().unwrap_or("unknown"));
     state.push_message("Connecting to Bitcoin Core...".into());
 
@@ -223,7 +223,7 @@ async fn fetch_template(state: &mut AppState) {
 async fn main_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     tui_rx: &mut mpsc::UnboundedReceiver<Event>,
-    ipc: &BitcoinIpc,
+    ipc: &BitcoinCapnp,
     state: &mut AppState,
     cancel: &CancellationToken,
     tui_tx: &mpsc::UnboundedSender<Event>,
@@ -323,7 +323,7 @@ fn is_quit_key(key: &KeyEvent) -> bool {
 async fn handle_key(
     key: KeyEvent,
     state: &mut AppState,
-    ipc: &BitcoinIpc,
+    ipc: &BitcoinCapnp,
     cancel: &CancellationToken,
     tui_tx: &mpsc::UnboundedSender<Event>,
 ) {
@@ -492,7 +492,7 @@ async fn handle_key(
 async fn handle_input_mode(
     key: KeyEvent,
     state: &mut AppState,
-    ipc: &BitcoinIpc,
+    ipc: &BitcoinCapnp,
     cancel: &CancellationToken,
     tui_tx: &mpsc::UnboundedSender<Event>,
 ) {
@@ -533,7 +533,7 @@ fn current_buffer_mut(state: &mut AppState) -> &mut String {
 
 async fn advance_input(
     state: &mut AppState,
-    _ipc: &BitcoinIpc,
+    _ipc: &BitcoinCapnp,
     _cancel: &CancellationToken,
     _tui_tx: &mpsc::UnboundedSender<Event>,
 ) {

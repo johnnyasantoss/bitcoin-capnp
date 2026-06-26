@@ -1,6 +1,6 @@
 [package]
-name = "bitcoin-ipc"
-description = "A Rust client library for Bitcoin Core's IPC (inter-process communication) interface"
+name = "bitcoin-capnp"
+description = "A Rust client library for Bitcoin Core's Capnp (inter-process communication) interface"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"

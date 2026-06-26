@@ -2,7 +2,7 @@ use bitcoin::consensus;
 
 /// Errors that can occur when communicating with Bitcoin Core via IPC.
 #[derive(Debug, thiserror::Error)]
-pub enum BitcoinIpcError {
+pub enum BitcoinCapnpError {
     /// A Cap'n Proto serialization or RPC error.
     #[error("Cap'n Proto error: {0}")]
     CapnpError(#[from] capnp::Error),

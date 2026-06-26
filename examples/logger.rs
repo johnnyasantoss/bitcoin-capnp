@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use bitcoin_ipc::BitcoinIpc;
+use bitcoin_capnp::BitcoinCapnp;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -26,7 +26,7 @@ async fn main() {
         cancel.cancel();
     });
 
-    let ipc = BitcoinIpc::new(path);
+    let ipc = BitcoinCapnp::new(path);
 
     let monitor = ipc
         .mining

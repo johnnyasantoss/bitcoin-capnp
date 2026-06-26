@@ -4,7 +4,7 @@
 //! Provides connection setup and thread creation utilities.
 //! `pub(crate)` — not part of public API.
 
-use crate::error::BitcoinIpcError;
+use crate::error::BitcoinCapnpError;
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
 use std::path::Path;
 use tokio::net::UnixStream;
@@ -17,7 +17,7 @@ use tokio_util::compat::*;
 /// holds internal references that keep the RPC connection alive.
 pub(crate) async fn connect(
     socket_path: &Path,
-) -> Result<crate::gen::init_capnp::init::Client, BitcoinIpcError> {
+) -> Result<crate::gen::init_capnp::init::Client, BitcoinCapnpError> {
     let stream = UnixStream::connect(socket_path).await?;
     let (reader, writer) = stream.into_split();
     let reader_compat = reader.compat();
@@ -45,7 +45,7 @@ pub(crate) async fn connect(
 /// to route method calls to the correct server thread.
 pub(crate) async fn make_thread(
     init_client: &crate::gen::init_capnp::init::Client,
-) -> Result<crate::gen::proxy_capnp::thread::Client, BitcoinIpcError> {
+) -> Result<crate::gen::proxy_capnp::thread::Client, BitcoinCapnpError> {
     use crate::gen::proxy_capnp::thread_map::Client as ThreadMapClient;
 
     let construct_response = init_client.construct_request().send().promise.await?;

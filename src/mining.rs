@@ -6,7 +6,7 @@
 
 use crate::actor::{ActorTx, Command};
 use crate::client::IntoCapnp;
-use crate::error::BitcoinIpcError;
+use crate::error::BitcoinCapnpError;
 use crate::gen::common_capnp::block_ref;
 use tokio::sync::{broadcast, oneshot};
 use tracing::info;
@@ -83,7 +83,7 @@ pub struct TipChange {
 /// Provides block template creation and chain tip change monitoring.
 /// `Send` and `Clone` — safe to use across async tasks.
 ///
-/// Created by `BitcoinIpc::new()` during bootstrap. Do not construct directly.
+/// Created by `BitcoinCapnp::new()` during bootstrap. Do not construct directly.
 #[derive(Clone)]
 pub struct MiningClient {
     cmd_tx: ActorTx,
@@ -95,30 +95,30 @@ impl MiningClient {
     }
 
     /// Check if the node is running on testnet/regtest.
-    pub async fn is_test_chain(&self) -> Result<bool, BitcoinIpcError> {
+    pub async fn is_test_chain(&self) -> Result<bool, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MiningIsTestChain { reply: tx })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Check if the node is still in Initial Block Download.
-    pub async fn is_initial_block_download(&self) -> Result<bool, BitcoinIpcError> {
+    pub async fn is_initial_block_download(&self) -> Result<bool, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MiningIsInitialBlockDownload { reply: tx })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get the current chain tip.
-    pub async fn get_tip(&self) -> Result<Option<BlockRef>, BitcoinIpcError> {
+    pub async fn get_tip(&self) -> Result<Option<BlockRef>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MiningGetTip { reply: tx })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Wait for the chain tip to change from `current_tip`, with a timeout in seconds.
@@ -127,7 +127,7 @@ impl MiningClient {
         &self,
         current_tip: &[u8],
         timeout: f64,
-    ) -> Result<BlockRef, BitcoinIpcError> {
+    ) -> Result<BlockRef, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MiningWaitTipChanged {
@@ -135,8 +135,8 @@ impl MiningClient {
                 timeout,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Create a new block template from the node.
@@ -145,15 +145,15 @@ impl MiningClient {
     pub async fn create_new_block(
         &self,
         options: &BlockCreateOptions,
-    ) -> Result<(), BitcoinIpcError> {
+    ) -> Result<(), BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MiningCreateNewBlock {
                 options: options.clone(),
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Start tip change monitoring and create a block template handle.
@@ -165,7 +165,7 @@ impl MiningClient {
         &self,
         coinbase_output_max_additional_size: u32,
         coinbase_output_max_additional_sigops: u16,
-    ) -> Result<MonitorClient, BitcoinIpcError> {
+    ) -> Result<MonitorClient, BitcoinCapnpError> {
         info!(
             "Coinbase output max additional size: {}",
             coinbase_output_max_additional_size
@@ -182,9 +182,10 @@ impl MiningClient {
                 coinbase_output_max_additional_sigops,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        let (monitor_id, tip_change_tx) =
-            rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)??;
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        let (monitor_id, tip_change_tx) = rx
+            .await
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)??;
 
         Ok(MonitorClient {
             cmd_tx: self.cmd_tx.clone(),
@@ -215,111 +216,111 @@ impl MonitorClient {
 
     /// Fetch the current block template and coinbase from Bitcoin Core.
     /// Returns (block_bytes, coinbase_bytes).
-    pub async fn fetch_block_template(&self) -> Result<(Vec<u8>, Vec<u8>), BitcoinIpcError> {
+    pub async fn fetch_block_template(&self) -> Result<(Vec<u8>, Vec<u8>), BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorFetchBlockTemplate {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get the raw block header bytes (80 bytes).
-    pub async fn get_block_header(&self) -> Result<Vec<u8>, BitcoinIpcError> {
+    pub async fn get_block_header(&self) -> Result<Vec<u8>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetBlockHeader {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get the raw block bytes (full serialized block).
-    pub async fn get_block(&self) -> Result<Vec<u8>, BitcoinIpcError> {
+    pub async fn get_block(&self) -> Result<Vec<u8>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetBlock {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get per-transaction fees for all transactions in the block template.
-    pub async fn get_tx_fees(&self) -> Result<Vec<i64>, BitcoinIpcError> {
+    pub async fn get_tx_fees(&self) -> Result<Vec<i64>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetTxFees {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get per-transaction sigop counts for all transactions in the block template.
-    pub async fn get_tx_sigops(&self) -> Result<Vec<i64>, BitcoinIpcError> {
+    pub async fn get_tx_sigops(&self) -> Result<Vec<i64>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetTxSigops {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get the serialized coinbase transaction.
-    pub async fn get_coinbase_tx(&self) -> Result<Vec<u8>, BitcoinIpcError> {
+    pub async fn get_coinbase_tx(&self) -> Result<Vec<u8>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetCoinbaseTx {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get the witness commitment hash from the coinbase transaction.
-    pub async fn get_coinbase_commitment(&self) -> Result<Vec<u8>, BitcoinIpcError> {
+    pub async fn get_coinbase_commitment(&self) -> Result<Vec<u8>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetCoinbaseCommitment {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get the index of the witness commitment output in the coinbase.
-    pub async fn get_witness_commitment_index(&self) -> Result<i32, BitcoinIpcError> {
+    pub async fn get_witness_commitment_index(&self) -> Result<i32, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetWitnessCommitmentIndex {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Get the coinbase transaction's merkle proof path.
-    pub async fn get_coinbase_merkle_path(&self) -> Result<Vec<Vec<u8>>, BitcoinIpcError> {
+    pub async fn get_coinbase_merkle_path(&self) -> Result<Vec<Vec<u8>>, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorGetCoinbaseMerklePath {
                 monitor_id: self.monitor_id,
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Submit a block solution to the node.
@@ -329,7 +330,7 @@ impl MonitorClient {
         timestamp: u32,
         nonce: u32,
         coinbase: &[u8],
-    ) -> Result<bool, BitcoinIpcError> {
+    ) -> Result<bool, BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorSubmitSolution {
@@ -340,8 +341,8 @@ impl MonitorClient {
                 coinbase: coinbase.to_vec(),
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 
     /// Wait for the block template to change (new transactions, new fee thresholds, etc).
@@ -349,7 +350,7 @@ impl MonitorClient {
     pub async fn wait_next(
         &self,
         options: Option<&BlockWaitOptions>,
-    ) -> Result<(), BitcoinIpcError> {
+    ) -> Result<(), BitcoinCapnpError> {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::MonitorWaitNext {
@@ -357,8 +358,8 @@ impl MonitorClient {
                 options: options.cloned(),
                 reply: tx,
             })
-            .map_err(|_| BitcoinIpcError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinIpcError::ActorDisconnected)?
+            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
+        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
 }
 

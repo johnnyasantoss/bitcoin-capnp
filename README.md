@@ -1,15 +1,10 @@
-# Bitcoin-IPC
+# Bitcoin-Capnp
 
 Rust client library for Bitcoin Core's Cap'n Proto IPC (libmultiprocess)
 interface.
 
 Works with Bitcoin Core, Knots, and compatible implementations. For consumers
 (p2poolv2, Stratum V2, any software that needs to talk to a Bitcoin node).
-
-> [!CAUTION]
-> This code is **NOT** the one behind the one on crates.io [bitcoin-ipc][crates-btc-ipc].
-
-[crates-btc-ipc]: https://crates.io/crates/bitcoin-ipc
 
 ## Build
 

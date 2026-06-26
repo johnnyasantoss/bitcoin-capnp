@@ -103,7 +103,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11301df0b06f22dea7bb1916403fdd88a371031e495c49b8f96931b28189e175"
 
 [[package]]
-name = "bitcoin-ipc"
+name = "bitcoin-capnp"
 version = "0.1.0"
 dependencies = [
  "bitcoin",
@@ -1685,7 +1685,7 @@ dependencies = [
 name = "tui"
 version = "0.1.0"
 dependencies = [
- "bitcoin-ipc",
+ "bitcoin-capnp",
  "crossterm",
  "futures",
  "ratatui",

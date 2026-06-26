@@ -3,3 +3,6 @@ target/
 src/gen/*
 !src/gen/mod.rs
 !src/gen/README.md
+
+# Environment variables
+.env

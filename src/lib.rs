@@ -12,11 +12,11 @@
 //! Bitcoin Core's repository. Internal plumbing lives in `libmp` (crate-private).
 //!
 //! ```no_run
-//! use bitcoin_ipc::BitcoinIpc;
+//! use bitcoin_capnp::BitcoinCapnp;
 //!
 //! # #[tokio::main]
 //! # async fn main() {
-//! let ipc = BitcoinIpc::new("/path/to/bitcoin.sock".as_ref());
+//! let ipc = BitcoinCapnp::new("/path/to/bitcoin.sock".as_ref());
 //! let _monitor = ipc.mining.start_monitoring(1, 1).await.unwrap();
 //! # }
 //! ```
@@ -41,7 +41,7 @@ mod libmp;
 pub mod mining;
 pub mod proxy;
 
-pub use error::BitcoinIpcError;
+pub use error::BitcoinCapnpError;
 pub use mining::{
     BlockCreateOptions, BlockRef, BlockValidationState, BlockWaitOptions, MonitorClient, TipChange,
 };
@@ -61,22 +61,22 @@ use tracing::info;
 /// # Example
 ///
 /// ```no_run
-/// use bitcoin_ipc::BitcoinIpc;
+/// use bitcoin_capnp::BitcoinCapnp;
 ///
 /// # #[tokio::main]
 /// # async fn main() {
-/// let ipc = BitcoinIpc::new("/path/to/bitcoin.sock".as_ref());
+/// let ipc = BitcoinCapnp::new("/path/to/bitcoin.sock".as_ref());
 /// let monitor = ipc.mining.start_monitoring(1, 1).await.unwrap();
 /// # }
 /// ```
 #[derive(Clone)]
-pub struct BitcoinIpc {
+pub struct BitcoinCapnp {
     pub mining: mining::MiningClient,
     pub echo: echo::EchoClient,
 }
 
-impl BitcoinIpc {
-    /// Create a new IPC connection to a Bitcoin Core node.
+impl BitcoinCapnp {
+    /// Create a new Capnp connection to a Bitcoin Core node.
     ///
     /// Spawns an internal actor thread that owns all Cap'n Proto state.
     /// The connection is established asynchronously inside the thread;

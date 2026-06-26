@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::exit;
 use std::time::Duration;
 
-use bitcoin_ipc::BitcoinIpc;
+use bitcoin_capnp::BitcoinCapnp;
 use tokio::signal::ctrl_c;
 use tokio::spawn;
 use tokio::time::MissedTickBehavior;
@@ -37,7 +37,7 @@ async fn main() {
 }
 
 async fn echo_ping(path: &Path, cancel: CancellationToken) {
-    let ipc = BitcoinIpc::new(path);
+    let ipc = BitcoinCapnp::new(path);
 
     let mut sent = 0u64;
     let mut lost = 0u64;

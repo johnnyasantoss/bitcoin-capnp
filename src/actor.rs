@@ -7,13 +7,16 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::thread;
 
+use tokio::runtime::Builder;
 use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::task::LocalSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::client::IntoCapnp;
-use crate::error::BitcoinIpcError;
+use crate::error::BitcoinCapnpError;
 use crate::gen::echo_capnp::echo::Client as EchoIpcClient;
 use crate::gen::mining_capnp::block_template::Client as BlockTemplateIpcClient;
 use crate::gen::mining_capnp::mining::Client as MiningIpcClient;
@@ -26,73 +29,73 @@ pub(crate) type ActorTx = mpsc::UnboundedSender<Command>;
 /// Commands sent from public clients to the actor thread.
 pub(crate) enum Command {
     MiningIsTestChain {
-        reply: oneshot::Sender<Result<bool, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<bool, BitcoinCapnpError>>,
     },
     MiningIsInitialBlockDownload {
-        reply: oneshot::Sender<Result<bool, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<bool, BitcoinCapnpError>>,
     },
     MiningGetTip {
-        reply: oneshot::Sender<Result<Option<BlockRef>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Option<BlockRef>, BitcoinCapnpError>>,
     },
     MiningWaitTipChanged {
         current_tip: Vec<u8>,
         timeout: f64,
-        reply: oneshot::Sender<Result<BlockRef, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<BlockRef, BitcoinCapnpError>>,
     },
     MiningCreateNewBlock {
         options: BlockCreateOptions,
-        reply: oneshot::Sender<Result<(), BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<(), BitcoinCapnpError>>,
     },
     MiningStartMonitoring {
         coinbase_output_max_additional_size: u32,
         coinbase_output_max_additional_sigops: u16,
-        reply: oneshot::Sender<Result<(u64, broadcast::Sender<TipChange>), BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<(u64, broadcast::Sender<TipChange>), BitcoinCapnpError>>,
     },
 
     EchoEcho {
         message: String,
         cancel: CancellationToken,
-        reply: oneshot::Sender<Result<String, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<String, BitcoinCapnpError>>,
     },
     EchoDestroy {
-        reply: oneshot::Sender<Result<(), BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<(), BitcoinCapnpError>>,
     },
 
     MonitorFetchBlockTemplate {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<(Vec<u8>, Vec<u8>), BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<(Vec<u8>, Vec<u8>), BitcoinCapnpError>>,
     },
     MonitorGetBlockHeader {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<Vec<u8>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Vec<u8>, BitcoinCapnpError>>,
     },
     MonitorGetBlock {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<Vec<u8>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Vec<u8>, BitcoinCapnpError>>,
     },
     MonitorGetTxFees {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<Vec<i64>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Vec<i64>, BitcoinCapnpError>>,
     },
     MonitorGetTxSigops {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<Vec<i64>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Vec<i64>, BitcoinCapnpError>>,
     },
     MonitorGetCoinbaseTx {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<Vec<u8>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Vec<u8>, BitcoinCapnpError>>,
     },
     MonitorGetCoinbaseCommitment {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<Vec<u8>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Vec<u8>, BitcoinCapnpError>>,
     },
     MonitorGetWitnessCommitmentIndex {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<i32, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<i32, BitcoinCapnpError>>,
     },
     MonitorGetCoinbaseMerklePath {
         monitor_id: u64,
-        reply: oneshot::Sender<Result<Vec<Vec<u8>>, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<Vec<Vec<u8>>, BitcoinCapnpError>>,
     },
     MonitorSubmitSolution {
         monitor_id: u64,
@@ -100,16 +103,15 @@ pub(crate) enum Command {
         timestamp: u32,
         nonce: u32,
         coinbase: Vec<u8>,
-        reply: oneshot::Sender<Result<bool, BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<bool, BitcoinCapnpError>>,
     },
     MonitorWaitNext {
         monitor_id: u64,
         options: Option<BlockWaitOptions>,
-        reply: oneshot::Sender<Result<(), BitcoinIpcError>>,
+        reply: oneshot::Sender<Result<(), BitcoinCapnpError>>,
     },
 }
 
-#[allow(dead_code)]
 struct MonitorState {
     template_ipc_client: BlockTemplateIpcClient,
     tip_change_tx: broadcast::Sender<TipChange>,
@@ -133,13 +135,13 @@ pub(crate) fn spawn(path: &Path) -> ActorTx {
     let path = path.to_path_buf();
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
 
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
+    thread::spawn(move || {
+        let rt = Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("actor runtime");
         rt.block_on(async {
-            let local = tokio::task::LocalSet::new();
+            let local = LocalSet::new();
             local
                 .run_until(async {
                     match init_actor(&path, cmd_rx).await {
@@ -159,7 +161,7 @@ pub(crate) fn spawn(path: &Path) -> ActorTx {
 async fn init_actor(
     path: &Path,
     cmd_rx: mpsc::UnboundedReceiver<Command>,
-) -> Result<Actor, BitcoinIpcError> {
+) -> Result<Actor, BitcoinCapnpError> {
     let init_client = crate::libmp::connect(path).await?;
     let thread_client = crate::libmp::make_thread(&init_client).await?;
 
@@ -200,7 +202,7 @@ impl Actor {
         }
     }
 
-    async fn handle(&mut self, cmd: Command) -> Result<(), BitcoinIpcError> {
+    async fn handle(&mut self, cmd: Command) -> Result<(), BitcoinCapnpError> {
         match cmd {
             Command::MiningIsTestChain { reply } => {
                 let mut req = self.mining_ipc_client.is_test_chain_request();
@@ -324,7 +326,7 @@ impl Actor {
                 req.get().set_echo(&message);
 
                 let result = tokio::select! {
-                    _ = cancel.cancelled() => Err(BitcoinIpcError::Cancelled),
+                    _ = cancel.cancelled() => Err(BitcoinCapnpError::Cancelled),
                     response = req.send().promise => Ok(response?),
                 };
 
@@ -376,7 +378,7 @@ impl Actor {
                         todo!()
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -395,7 +397,7 @@ impl Actor {
                         let _ = reply.send(Ok(data));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -414,7 +416,7 @@ impl Actor {
                         let _ = reply.send(Ok(data));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -431,7 +433,7 @@ impl Actor {
                         let _ = reply.send(Ok(fees));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -448,7 +450,7 @@ impl Actor {
                         let _ = reply.send(Ok(sigops));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -468,7 +470,7 @@ impl Actor {
                         //let _ = reply.send(Ok(data));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -488,7 +490,7 @@ impl Actor {
                         //let _ = reply.send(Ok(data));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -506,7 +508,7 @@ impl Actor {
                         // let _ = reply.send(Ok(response.get()?.get_result()));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -526,7 +528,7 @@ impl Actor {
                         let _ = reply.send(Ok(path));
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }
@@ -552,7 +554,7 @@ impl Actor {
                     let _ = reply.send(Ok(response.get()?.get_result()));
                 }
                 None => {
-                    let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                    let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                 }
             },
             Command::MonitorWaitNext {
@@ -581,11 +583,11 @@ impl Actor {
                             state.template_ipc_client = t;
                             let _ = reply.send(Ok(()));
                         } else {
-                            let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                            let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                         }
                     }
                     None => {
-                        let _ = reply.send(Err(BitcoinIpcError::MonitorNotFound(monitor_id)));
+                        let _ = reply.send(Err(BitcoinCapnpError::MonitorNotFound(monitor_id)));
                     }
                 }
             }

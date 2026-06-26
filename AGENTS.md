@@ -1,10 +1,9 @@
-# bitcoin-ipc
+# bitcoin-capnp
 
 Rust Cap'n Proto IPC client for Bitcoin Core / Knots. Consumers: p2poolv2,
 Stratum V2, any software that needs to talk to a Bitcoin node.
 
-Migration from `sv2-bitcoin-core` to `bitcoin-ipc` complete — see
-`docs/001-dep-cleanup.md` and `docs/002-repurpose.md` for history.
+See @docs/* for migration history, documentation and implementation plans.
 
 ## Build
 
@@ -22,10 +21,14 @@ Requires `capnpc` (from cap'n proto install) to generate `src/gen/*.rs` from
 Library crate — no binary. Example entrypoints:
 
 ```
-cargo run --example logger /path/to/bitcoin/node.sock
-cargo run --example echo   /path/to/bitcoin/node.sock
-cargo run --manifest-path examples/tui/Cargo.toml /path/to/bitcoin/node.sock
+just run-example logger /path/to/bitcoin/node.sock
+just run-example echo   /path/to/bitcoin/node.sock
+# interactive
+just run-tui    /path/to/bitcoin/node.sock
 ```
+
+Use `just --list` to get available development commands.
+Prefer `just` over custom scripts for consistency.
 
 ## Docs
 
@@ -35,9 +38,9 @@ cargo run --manifest-path examples/tui/Cargo.toml /path/to/bitcoin/node.sock
 ## Quirks
 
 - All Cap'n Proto state lives in a dedicated actor thread (`src/actor.rs`).
-  Public clients (`BitcoinIpc`, `MiningClient`, `MonitorClient`, `EchoClient`)
+  Public clients (`BitcoinCapnp`, `MiningClient`, `MonitorClient`, `EchoClient`)
   are `Send + Clone` handles that communicate via channels.
-- `BitcoinIpc::new()` is **synchronous** — it spawns the actor thread and
+- `BitcoinCapnp::new()` is **synchronous** — it spawns the actor thread and
   returns immediately. Connection happens asynchronously inside the thread;
   the first method call naturally blocks until ready.
 - `src/gen/` is gitignored except `src/gen/mod.rs` — never commit generated
