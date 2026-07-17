@@ -32,3 +32,8 @@ doc:
 # Watch mode — re-check on file changes (requires bacon)
 watch:
     bacon -s check-all
+
+# Lint all file
+lint:
+    tombi lint
+    cargo clippy
