@@ -17,10 +17,10 @@ use tracing::{error, info};
 
 use crate::client::IntoCapnp;
 use crate::error::BitcoinCapnpError;
-use crate::gen::echo_capnp::echo::Client as EchoIpcClient;
-use crate::gen::mining_capnp::block_template::Client as BlockTemplateIpcClient;
-use crate::gen::mining_capnp::mining::Client as MiningIpcClient;
-use crate::gen::proxy_capnp::thread::Client as ThreadIpcClient;
+use crate::generated::echo_capnp::echo::Client as EchoIpcClient;
+use crate::generated::mining_capnp::block_template::Client as BlockTemplateIpcClient;
+use crate::generated::mining_capnp::mining::Client as MiningIpcClient;
+use crate::generated::proxy_capnp::thread::Client as ThreadIpcClient;
 use crate::mining::{BlockCreateOptions, BlockRef, BlockWaitOptions, TipChange};
 
 /// Sender half exposed to the public clients.

@@ -1,8 +1,8 @@
 target/
 
-src/gen/*
-!src/gen/mod.rs
-!src/gen/README.md
+src/generated/*
+!src/generated/mod.rs
+!src/generated/README.md
 
 # Environment variables
 .env

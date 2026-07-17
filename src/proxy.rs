@@ -4,7 +4,7 @@
 //! Re-exports the `Thread` and `Context` types from the auto-generated
 //! Cap'n Proto code with Rust-native documentation.
 
-use crate::gen::proxy_capnp;
+use crate::generated::proxy_capnp;
 
 /// Cap'n Proto execution context passed as a parameter from client to server.
 ///

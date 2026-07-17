@@ -7,7 +7,7 @@ See @docs/* for migration history, documentation and implementation plans.
 
 ## Build
 
-Requires `capnpc` (from cap'n proto install) to generate `src/gen/*.rs` from
+Requires `capnpc` (from cap'n proto install) to generate `src/generated/*.rs` from
 `capnp/*.capnp` at build time.
 
 ## Verify
@@ -43,7 +43,7 @@ Prefer `just` over custom scripts for consistency.
 - `BitcoinCapnp::new()` is **synchronous** — it spawns the actor thread and
   returns immediately. Connection happens asynchronously inside the thread;
   the first method call naturally blocks until ready.
-- `src/gen/` is gitignored except `src/gen/mod.rs` — never commit generated
+- `src/generated/` is gitignored except `src/generated/mod.rs` — never commit generated
   capnp code.
 - Requires nightly Rust.
 

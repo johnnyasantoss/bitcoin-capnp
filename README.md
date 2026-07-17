@@ -9,7 +9,7 @@ Works with Bitcoin Core, Knots, and compatible implementations. For consumers
 ## Build
 
 Requires `capnpc` (from [Cap'n Proto](https://capnproto.org/install.html)) to
-generate `src/gen/*.rs` from `capnp/*.capnp` at build time.
+generate `src/generated/*.rs` from `capnp/*.capnp` at build time.
 
 ## Run
 

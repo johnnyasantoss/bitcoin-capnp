@@ -9,6 +9,10 @@ export SOCKET := env("SOCKET", "../bitcoin/testnet4/node.sock")
 _default:
     @just --list
 
+# Builds the lib
+build:
+    cargo build
+
 # Verify library compiles
 check:
     cargo check --all

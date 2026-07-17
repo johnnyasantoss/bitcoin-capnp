@@ -7,7 +7,7 @@ fn main() {
             .expect("CARGO_MANIFEST_DIR was not defined by the cargo environment!"),
     )
     .join("src")
-    .join("gen")
+    .join("generated")
     .to_str()
     .unwrap()
     .to_string();

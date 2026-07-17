@@ -2,12 +2,12 @@
 //! Do not modify — upstream schema changes belong in Bitcoin Core repository.
 //!
 //! High-level, Rust-native API for block template fetching and chain tip
-//! monitoring. Wraps auto-generated `gen::mining_capnp` types.
+//! monitoring. Wraps auto-generated `generated::mining_capnp` types.
 
 use crate::actor::{ActorTx, Command};
 use crate::client::IntoCapnp;
 use crate::error::BitcoinCapnpError;
-use crate::gen::common_capnp::block_ref;
+use crate::generated::common_capnp::block_ref;
 use tokio::sync::{broadcast, oneshot};
 use tracing::info;
 
@@ -36,10 +36,10 @@ pub struct BlockCreateOptions {
     pub coinbase_output_max_additional_sigops: u64,
 }
 
-impl<'a> IntoCapnp<crate::gen::mining_capnp::block_create_options::Builder<'a>>
+impl<'a> IntoCapnp<crate::generated::mining_capnp::block_create_options::Builder<'a>>
     for BlockCreateOptions
 {
-    fn apply(&self, b: &mut crate::gen::mining_capnp::block_create_options::Builder<'a>) {
+    fn apply(&self, b: &mut crate::generated::mining_capnp::block_create_options::Builder<'a>) {
         b.set_use_mempool(self.use_mempool);
         b.set_block_reserved_weight(self.block_reserved_weight);
         b.set_coinbase_output_max_additional_sigops(self.coinbase_output_max_additional_sigops);
@@ -54,8 +54,10 @@ pub struct BlockWaitOptions {
     pub fee_threshold: i64,
 }
 
-impl<'a> IntoCapnp<crate::gen::mining_capnp::block_wait_options::Builder<'a>> for BlockWaitOptions {
-    fn apply(&self, b: &mut crate::gen::mining_capnp::block_wait_options::Builder<'a>) {
+impl<'a> IntoCapnp<crate::generated::mining_capnp::block_wait_options::Builder<'a>>
+    for BlockWaitOptions
+{
+    fn apply(&self, b: &mut crate::generated::mining_capnp::block_wait_options::Builder<'a>) {
         b.set_timeout(self.timeout);
         b.set_fee_threshold(self.fee_threshold);
     }
@@ -366,8 +368,8 @@ impl MonitorClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gen::common_capnp::block_ref;
-    use crate::gen::mining_capnp::{block_create_options, block_wait_options};
+    use crate::generated::common_capnp::block_ref;
+    use crate::generated::mining_capnp::{block_create_options, block_wait_options};
 
     #[test]
     fn test_block_ref_from_capnp() {

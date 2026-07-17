@@ -5,7 +5,7 @@
 //! `pub(crate)` — not part of public API.
 
 use crate::error::BitcoinCapnpError;
-use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
+use capnp_rpc::{RpcSystem, rpc_twoparty_capnp, twoparty};
 use std::path::Path;
 use tokio::net::UnixStream;
 use tokio_util::compat::*;
@@ -17,7 +17,7 @@ use tokio_util::compat::*;
 /// holds internal references that keep the RPC connection alive.
 pub(crate) async fn connect(
     socket_path: &Path,
-) -> Result<crate::gen::init_capnp::init::Client, BitcoinCapnpError> {
+) -> Result<crate::generated::init_capnp::init::Client, BitcoinCapnpError> {
     let stream = UnixStream::connect(socket_path).await?;
     let (reader, writer) = stream.into_split();
     let reader_compat = reader.compat();
@@ -31,7 +31,7 @@ pub(crate) async fn connect(
     ));
 
     let mut rpc_system = RpcSystem::new(rpc_network, None);
-    let bootstrap_client: crate::gen::init_capnp::init::Client =
+    let bootstrap_client: crate::generated::init_capnp::init::Client =
         rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
 
     tokio::task::spawn_local(rpc_system);
@@ -44,9 +44,9 @@ pub(crate) async fn connect(
 /// Returns a `Thread` client handle that mining/echo clients use
 /// to route method calls to the correct server thread.
 pub(crate) async fn make_thread(
-    init_client: &crate::gen::init_capnp::init::Client,
-) -> Result<crate::gen::proxy_capnp::thread::Client, BitcoinCapnpError> {
-    use crate::gen::proxy_capnp::thread_map::Client as ThreadMapClient;
+    init_client: &crate::generated::init_capnp::init::Client,
+) -> Result<crate::generated::proxy_capnp::thread::Client, BitcoinCapnpError> {
+    use crate::generated::proxy_capnp::thread_map::Client as ThreadMapClient;
 
     let construct_response = init_client.construct_request().send().promise.await?;
     let thread_map: ThreadMapClient = construct_response.get()?.get_thread_map()?;

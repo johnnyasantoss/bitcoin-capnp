@@ -28,11 +28,11 @@ pub mod error;
 ///
 /// Low-level types generated directly from `*.capnp` schemas.
 /// Prefer the high-level wrappers in [`mining`], [`echo`], and [`proxy`].
-pub mod gen;
+pub mod generated;
 
 /// Re-exported so that auto-generated Cap'n Proto code can resolve
 /// `crate::proxy_capnp::`, `crate::mining_capnp::`, etc.
-pub use gen::*;
+pub use generated::*;
 
 mod actor;
 mod client;
