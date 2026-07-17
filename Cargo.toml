@@ -1,12 +1,13 @@
 [package]
-name = "bitcoin-capnp"
 description = "A Rust client library for Bitcoin Core's Capnp (inter-process communication) interface"
-version = "0.1.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-authors = ["Johnny Santos"]
+documentation = "https://docs.rs/bitcoin-capnp"
+edition = "2024"
 homepage = "https://stratumprotocol.org"
 keywords = ["bitcoin", "bitcoin-core", "mining", "stratum"]
+license = "Unlicense OR MIT"
+name = "bitcoin-capnp"
+repository = "https://github.com/johnnyasantoss/bitcoin-capnp.git"
+version = "0.1.0"
 
 [dependencies]
 bitcoin = "0.32.7"
