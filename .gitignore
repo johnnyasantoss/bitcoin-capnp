@@ -6,3 +6,6 @@ src/gen/*
 
 # Environment variables
 .env
+
+# Ignore lock files
+**/Cargo.lock
