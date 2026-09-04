@@ -13,7 +13,7 @@ use tokio::runtime::Builder;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::LocalSet;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::client::IntoCapnp;
 use crate::error::BitcoinCapnpError;
@@ -56,9 +56,6 @@ pub(crate) enum Command {
         message: String,
         cancel: CancellationToken,
         reply: oneshot::Sender<Result<String, BitcoinCapnpError>>,
-    },
-    EchoDestroy {
-        reply: oneshot::Sender<Result<(), BitcoinCapnpError>>,
     },
 
     MonitorFetchBlockTemplate {
@@ -135,25 +132,30 @@ pub(crate) fn spawn(path: &Path) -> ActorTx {
     let path = path.to_path_buf();
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
 
-    thread::spawn(move || {
-        let rt = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("actor runtime");
-        rt.block_on(async {
-            let local = LocalSet::new();
-            local
-                .run_until(async {
-                    match init_actor(&path, cmd_rx).await {
-                        Ok(actor) => actor.run().await,
-                        Err(e) => {
-                            error!("Actor initialization failed: {}", e);
+    thread::Builder::new()
+        .name("bitcoin-capnp-actor".into())
+        .spawn(move || {
+            let rt = Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("actor runtime");
+
+            rt.block_on(async {
+                let local = LocalSet::new();
+                local
+                    .run_until(async {
+                        match init_actor(&path, cmd_rx).await {
+                            Ok(actor) => actor.run().await,
+                            Err(e) => {
+                                error!("Actor initialization failed: {}", e);
+                            }
                         }
-                    }
-                })
-                .await;
-        });
-    });
+                        debug!("Actor thread exiting");
+                    })
+                    .await;
+            });
+        })
+        .expect("failed to spawn actor thread");
 
     cmd_tx
 }
@@ -162,6 +164,7 @@ async fn init_actor(
     path: &Path,
     cmd_rx: mpsc::UnboundedReceiver<Command>,
 ) -> Result<Actor, BitcoinCapnpError> {
+    // TODO(johnnyasantoss): Add cancel token to this fn
     let init_client = crate::libmp::connect(path).await?;
     let thread_client = crate::libmp::make_thread(&init_client).await?;
 
@@ -170,9 +173,6 @@ async fn init_actor(
         || init_client.make_mining_request(),
         |_| Ok(()),
     )?;
-    let mining_response = await_response(mining_prom, None).await?;
-    let mining_ipc_client: MiningIpcClient = mining_response.get()?.get_result()?;
-
     let echo_prom = send_request(
         &thread_client,
         || init_client.make_echo_request(),
@@ -461,10 +461,16 @@ fn deliver<T>(
         tracing::warn!("actor reply dropped: caller disconnected before reply");
     }
 }
+
 impl Actor {
     async fn run(mut self) {
-        while let Some(cmd) = self.cmd_rx.recv().await {
-            if let Err(e) = self.handle(cmd).await {
+        loop {
+            let res = match self.cmd_rx.recv().await {
+                Some(cmd) => self.handle(cmd).await,
+                None => break,
+            };
+
+            if let Err(e) = res {
                 error!("Actor command failed: {}", e);
             }
         }
@@ -503,6 +509,7 @@ impl Actor {
         };
         deliver(reply, result);
     }
+
     async fn handle(&mut self, cmd: Command) -> Result<(), BitcoinCapnpError> {
         match cmd {
             Command::MiningIsTestChain { reply } => {
@@ -665,16 +672,6 @@ impl Actor {
                         Ok(())
                     },
                     Some(cancel),
-                    reply,
-                )
-                .await;
-            }
-            Command::EchoDestroy { reply } => {
-                self.make_req(
-                    Unit,
-                    || self.echo_ipc_client.destroy_request(),
-                    |_| Ok(()),
-                    None,
                     reply,
                 )
                 .await;

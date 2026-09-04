@@ -46,13 +46,4 @@ impl EchoClient {
             .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
         rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
     }
-
-    /// Explicitly destroy the echo interface on the server side.
-    pub async fn destroy(&self) -> Result<(), BitcoinCapnpError> {
-        let (tx, rx) = oneshot::channel();
-        self.cmd_tx
-            .send(Command::EchoDestroy { reply: tx })
-            .map_err(|_| BitcoinCapnpError::ActorDisconnected)?;
-        rx.await.map_err(|_| BitcoinCapnpError::ActorDisconnected)?
-    }
 }
