@@ -17,6 +17,7 @@ use tracing::{debug, error, info};
 
 use crate::client::IntoCapnp;
 use crate::error::BitcoinCapnpError;
+use crate::generated::chain_capnp::chain::Client as ChainIpcClient;
 use crate::generated::echo_capnp::echo::Client as EchoIpcClient;
 use crate::generated::mining_capnp::block_template::Client as BlockTemplateIpcClient;
 use crate::generated::mining_capnp::mining::Client as MiningIpcClient;
@@ -50,6 +51,11 @@ pub(crate) enum Command {
         coinbase_output_max_additional_size: u32,
         coinbase_output_max_additional_sigops: u16,
         reply: oneshot::Sender<Result<(u64, broadcast::Sender<TipChange>), BitcoinCapnpError>>,
+    },
+
+    ChainGetHeight {
+        cancel: CancellationToken,
+        reply: oneshot::Sender<Result<Option<u32>, BitcoinCapnpError>>,
     },
 
     EchoEcho {
@@ -119,6 +125,7 @@ struct Actor {
     mining_ipc_client: MiningIpcClient,
     thread_ipc_client: ThreadIpcClient,
     echo_ipc_client: EchoIpcClient,
+    chain_ipc_client: ChainIpcClient,
     monitors: HashMap<u64, MonitorState>,
     next_monitor_id: u64,
     cmd_rx: mpsc::UnboundedReceiver<Command>,
@@ -178,8 +185,21 @@ async fn init_actor(
         || init_client.make_echo_request(),
         |_| Ok(()),
     )?;
-    let echo_response = await_response(echo_prom, None).await?;
+    let chain_prom = send_request(
+        &thread_client,
+        || init_client.make_chain_request(),
+        |_| Ok(()),
+    )?;
+
+    let (mining_response, echo_response, chain_response) = tokio::try_join!(
+        await_response(mining_prom, None),
+        await_response(echo_prom, None),
+        await_response(chain_prom, None)
+    )?;
+
+    let mining_ipc_client: MiningIpcClient = mining_response.get()?.get_result()?;
     let echo_ipc_client: EchoIpcClient = echo_response.get()?.get_result()?;
+    let chain_ipc_client: ChainIpcClient = chain_response.get()?.get_result()?;
 
     info!("Actor initialized: mining and echo clients created");
 
@@ -187,6 +207,7 @@ async fn init_actor(
         mining_ipc_client,
         thread_ipc_client: thread_client,
         echo_ipc_client,
+        chain_ipc_client,
         monitors: HashMap::new(),
         next_monitor_id: 1,
         cmd_rx,
@@ -235,6 +256,8 @@ impl_context_builder!(
     crate::generated::echo_capnp::echo::destroy_params::Builder<'_>,
     crate::generated::init_capnp::init::make_mining_params::Builder<'_>,
     crate::generated::init_capnp::init::make_echo_params::Builder<'_>,
+    crate::generated::init_capnp::init::make_chain_params::Builder<'_>,
+    crate::generated::chain_capnp::chain::get_height_params::Builder<'_>,
 );
 
 /// Build, fill thread context, and send a Cap'n Proto request synchronously.
@@ -296,6 +319,7 @@ struct Int64List;
 struct DataList;
 struct Unit;
 struct Text;
+struct OptionInt32;
 
 // Bool: is_test_chain, is_initial_block_download, submit_solution
 impl ExtractResult<crate::generated::mining_capnp::mining::is_test_chain_results::Owned> for Bool {
@@ -342,6 +366,18 @@ impl ExtractResult<crate::generated::mining_capnp::mining::get_tip_results::Owne
                 .map(|br| Some(br.into()))
                 .map_err(BitcoinCapnpError::from)
         }
+    }
+}
+
+impl ExtractResult<crate::generated::chain_capnp::chain::get_height_results::Owned>
+    for OptionInt32
+{
+    type Output = Option<u32>;
+
+    fn extract(
+        r: <crate::generated::chain_capnp::chain::get_height_results::Owned as capnp::traits::Owned>::Reader<'_>,
+    ) -> Result<Option<u32>, BitcoinCapnpError> {
+        Ok(r.get_has_result().then(|| r.get_result() as u32))
     }
 }
 
@@ -657,6 +693,17 @@ impl Actor {
                 );
 
                 deliver(reply, Ok((id, tip_change_tx)));
+            }
+
+            Command::ChainGetHeight { cancel, reply } => {
+                self.make_req(
+                    OptionInt32,
+                    || self.chain_ipc_client.get_height_request(),
+                    |_| Ok(()),
+                    Some(cancel),
+                    reply,
+                )
+                .await;
             }
 
             Command::EchoEcho {

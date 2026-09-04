@@ -35,6 +35,7 @@ pub mod generated;
 pub use generated::*;
 
 mod actor;
+pub mod chain;
 mod client;
 pub mod echo;
 mod libmp;
@@ -72,6 +73,7 @@ use tracing::info;
 #[derive(Clone)]
 pub struct BitcoinCapnp {
     pub mining: mining::MiningClient,
+    pub chain: chain::ChainClient,
     pub echo: echo::EchoClient,
 }
 
@@ -90,8 +92,13 @@ impl BitcoinCapnp {
         let cmd_tx = actor::spawn(node_socket_path);
 
         let mining = mining::MiningClient::new(cmd_tx.clone());
-        let echo = echo::EchoClient::new(cmd_tx);
+        let echo = echo::EchoClient::new(cmd_tx.clone());
+        let chain = chain::ChainClient::new(cmd_tx);
 
-        Self { mining, echo }
+        Self {
+            mining,
+            echo,
+            chain,
+        }
     }
 }
